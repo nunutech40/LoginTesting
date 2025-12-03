@@ -25,7 +25,7 @@ struct HTTPErrorMapper {
             
         default:
             // Kembalikan sebagai NetworkError biasa kalau tidak terdefinisi
-            return NetworkError.serverError(statusCode: statusCode, data: nil)
+            return nil
         }
     }
 }

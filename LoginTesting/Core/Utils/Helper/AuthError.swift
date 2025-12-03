@@ -7,7 +7,8 @@
 
 import Foundation
 
-enum AuthError: Error, LocalizedError {
+
+enum AuthError: Error, LocalizedError, Equatable {
     case invalidCredentials // 400, 401
     case accountBlocked     // 403
     case serverMaintenance  // 500
@@ -15,6 +16,7 @@ enum AuthError: Error, LocalizedError {
     case unknown            // Error antah berantah
     
     var errorDescription: String? {
+        // ... (kode errorDescription tetap sama, tidak perlu diubah)
         switch self {
         case .invalidCredentials:
             return "Username atau Password salah."
@@ -23,7 +25,7 @@ enum AuthError: Error, LocalizedError {
         case .serverMaintenance:
             return "Server sedang dalam perbaikan. Coba lagi nanti."
         case .custom(let message):
-            return message // Tampilkan pesan asli dari server
+            return message
         case .unknown:
             return "Terjadi kesalahan yang tidak diketahui."
         }

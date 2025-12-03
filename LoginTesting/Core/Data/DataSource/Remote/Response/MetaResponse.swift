@@ -16,5 +16,5 @@ struct Meta: Decodable {
 // MARK: - 2. ServerResponse (Reusable Generic Wrapper)
 struct ServerResponse<T: Decodable>: Decodable {
     let meta: Meta
-    let data: T // Tipe data unik (T) yang berisi payload
+    let data: T? // Tipe data unik (T) yang berisi payload
 }

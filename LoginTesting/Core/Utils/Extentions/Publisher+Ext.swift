@@ -13,10 +13,10 @@ extension Publisher where Output == Data, Failure == NetworkError {
     // Fungsi ini khusus buat API kantor kamu yang punya format { meta, data }
     func parseAPIResponse<T: Decodable>(type: T.Type) -> AnyPublisher<T, Error> {
         return self
-            // 1. Decode ke Wrapper Standard (ServerResponse)
+        // 1. Decode ke Wrapper Standard (ServerResponse)
             .decode(type: ServerResponse<T>.self, decoder: JSONDecoder())
-            
-            // 2. Validasi Logic Bisnis (Meta)
+        
+        // 2. Validasi Logic Bisnis (Meta)
             .tryMap { wrapper in
                 // Cek Kode Meta
                 if let businessError = HTTPErrorMapper.map(statusCode: wrapper.meta.code) {
@@ -35,11 +35,15 @@ extension Publisher where Output == Data, Failure == NetworkError {
                     throw AuthError.unknown
                 }
                 
-                // Ambil Dagingnya (Payload)
-                return wrapper.data
+                // Kalau meta sukses, data HARUS ada. Kalau nil, berarti aneh.
+                guard let validData = wrapper.data else {
+                    throw NetworkError.invalidResponse // Atau error "Data Kosong"
+                }
+                
+                return validData
             }
-            
-            // 3. Mapping Error Terpusat
+        
+        // 3. Mapping Error Terpusat
             .mapError { error in
                 // A. Error dari APIClient (401, 500, Offline)
                 if let netError = error as? NetworkError {
