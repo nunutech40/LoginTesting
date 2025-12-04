@@ -5,25 +5,30 @@
 //  Created by Nunu Nugraha on 03/12/25.
 //
 
-
 import SwiftUI
 
 struct LoginView: View {
     
-    // MARK: - Properties
     @StateObject var presenter: LoginPresenter
     
-    @State private var username = ""
+    @State private var email = ""
     @State private var password = ""
     @State private var isPasswordVisible = false
     
-    // MARK: - Body
+    // State Validasi Lokal (Untuk feedback UI langsung)
+    var isEmailValid: Bool { email.isValidEmail }
+    var isPasswordValid: Bool { password.isValidPassword }
+    //var canSubmit: Bool { isEmailValid && isPasswordValid && !presenter.isLoading }
+    
+    var canSubmit: Bool {
+        // Bypass validasi: Tombol nyala asalkan input tidak kosong & tidak loading
+        !email.isEmpty && !password.isEmpty && !presenter.isLoading
+    }
+    
     var body: some View {
         ZStack {
-            // 1. Layer Paling Bawah: Background & Gesture Handler
             backgroundLayer
             
-            // 2. Layer Konten Utama
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 30) {
                     headerSection
@@ -34,7 +39,6 @@ struct LoginView: View {
                 .padding(.vertical, 40)
             }
         }
-        // 3. Handle Alert Error
         .alert(isPresented: $presenter.isError) {
             Alert(
                 title: Text("Login Gagal"),
@@ -45,25 +49,18 @@ struct LoginView: View {
     }
 }
 
-// MARK: - Subviews (Abstraksi)
+// MARK: - Subviews
 extension LoginView {
     
-    // 1. Background Layer
-    // Kita pisah gesture ini agar tidak mengganggu tombol Login
     var backgroundLayer: some View {
         Color(UIColor.systemGroupedBackground)
             .ignoresSafeArea()
             .overlay(
-                // Invisible layer untuk menangkap tap di area kosong
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        hideKeyboard()
-                    }
+                Color.clear.contentShape(Rectangle())
+                    .onTapGesture { hideKeyboard() }
             )
     }
     
-    // 2. Header (Logo & Title)
     var headerSection: some View {
         VStack(spacing: 16) {
             Image(systemName: "lock.shield.fill")
@@ -77,51 +74,90 @@ extension LoginView {
                 .fontWeight(.bold)
                 .foregroundColor(.primary)
             
-            Text("Please sign in to continue")
+            Text("Please sign in to your account")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
         }
     }
     
-    // 3. Input Form
     var inputFormSection: some View {
         VStack(spacing: 20) {
-            // Input Username
-            inputField(
-                icon: "person.fill",
-                placeholder: "Username",
-                text: $username
-            )
             
-            // Input Password
-            HStack {
-                Image(systemName: "lock.fill")
-                    .foregroundColor(.gray)
-                
-                if isPasswordVisible {
-                    TextField("Password", text: $password)
-                } else {
-                    SecureField("Password", text: $password)
-                }
-                
-                Button(action: { isPasswordVisible.toggle() }) {
-                    Image(systemName: isPasswordVisible ? "eye.slash" : "eye")
+            // 1. INPUT EMAIL
+            VStack(alignment: .leading, spacing: 5) {
+                HStack {
+                    Image(systemName: "envelope.fill")
                         .foregroundColor(.gray)
+                        .frame(width: 20)
+                    
+                    TextField("Email Address", text: $email)
+                        .keyboardType(.emailAddress)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                    
+                    // Indikator Validasi (Checkmark Hijau)
+                    if !email.isEmpty {
+                        Image(systemName: isEmailValid ? "checkmark.circle.fill" : "xmark.circle.fill")
+                            .foregroundColor(isEmailValid ? .green : .red)
+                    }
+                }
+                .padding()
+                .background(Color.white)
+                .cornerRadius(12)
+                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+                
+                // Pesan Error Email (Opsional)
+                if !email.isEmpty && !isEmailValid {
+                    Text("Format email tidak valid")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .padding(.leading, 12)
                 }
             }
-            .padding()
-            .background(Color.white)
-            .cornerRadius(12)
-            .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+            
+            // 2. INPUT PASSWORD
+            VStack(alignment: .leading, spacing: 5) {
+                HStack {
+                    Image(systemName: "lock.fill")
+                        .foregroundColor(.gray)
+                        .frame(width: 20)
+                    
+                    if isPasswordVisible {
+                        TextField("Password", text: $password)
+                            .autocapitalization(.none)
+                            .disableAutocorrection(true)
+                    } else {
+                        SecureField("Password", text: $password)
+                            .textContentType(.password) // Penting buat autofill
+                    }
+                    
+                    // Tombol Show/Hide
+                    Button(action: { isPasswordVisible.toggle() }) {
+                        Image(systemName: isPasswordVisible ? "eye.slash.fill" : "eye.fill")
+                            .foregroundColor(.gray)
+                    }
+                }
+                .padding()
+                .background(Color.white)
+                .cornerRadius(12)
+                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+                
+                // Pesan Error Password
+                if !password.isEmpty && !isPasswordValid {
+                    Text("Password minimal 8 karakter")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .padding(.leading, 12)
+                }
+            }
         }
         .padding(.horizontal)
     }
     
-    // 4. Tombol Login
     var loginButtonSection: some View {
         Button(action: {
             hideKeyboard()
-            presenter.login(username: username, pass: password)
+            presenter.login(username: email, pass: password)
         }) {
             HStack {
                 if presenter.isLoading {
@@ -130,50 +166,28 @@ extension LoginView {
                         .padding(.trailing, 5)
                 }
                 
-                Text(presenter.isLoading ? "Signing In..." : "Login")
+                Text(presenter.isLoading ? "Masuk..." : "Login")
                     .fontWeight(.bold)
             }
             .frame(maxWidth: .infinity)
             .padding()
-            .background(isValidForm ? Color.blue : Color.gray)
+            // Warna tombol berubah kalau form belum valid
+            .background(canSubmit ? Color.blue : Color.gray.opacity(0.5))
             .foregroundColor(.white)
             .cornerRadius(12)
-            .shadow(radius: 5)
+            .shadow(radius: canSubmit ? 5 : 0)
         }
-        .disabled(presenter.isLoading || !isValidForm)
+        .disabled(!canSubmit) // Matikan tombol kalau tidak valid
         .padding(.horizontal)
     }
     
-    // 5. Footer
     var footerSection: some View {
         HStack {
             Text("Don't have an account?")
                 .foregroundColor(.secondary)
-            Button("Sign Up") {
-                // Action Sign Up
-            }
-            .foregroundColor(.blue)
+            Button("Sign Up") { }
+                .foregroundColor(.blue)
         }
-    }
-    
-    // Helper untuk Input Field biasa
-    func inputField(icon: String, placeholder: String, text: Binding<String>) -> some View {
-        HStack {
-            Image(systemName: icon)
-                .foregroundColor(.gray)
-            TextField(placeholder, text: text)
-                .autocapitalization(.none)
-                .disableAutocorrection(true)
-        }
-        .padding()
-        .background(Color.white)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
-    }
-    
-    // Logic Validasi
-    var isValidForm: Bool {
-        return !username.isEmpty && !password.isEmpty
     }
 }
 

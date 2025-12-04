@@ -13,8 +13,8 @@ target 'LoginTesting' do
     # Pods for testing
   end
 
-  target 'LoginTestingUITests' do
-    # Pods for testing
-  end
+#  target 'LoginTestingUITests' do
+#    # Pods for testing
+#  end
 
 end
