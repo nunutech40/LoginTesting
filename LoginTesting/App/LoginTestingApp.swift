@@ -11,8 +11,8 @@ import SwiftUI
 struct LoginTestingApp: App {
     
     // 1. SINGLE SOURCE OF TRUTH
-    // Kita inisialisasi Manager ini SEKALI di sini.
-    // Kita minta tolong 'Injection' buat bikin objectnya (biar rapi).
+    // @StateObject artinya object ini milik App, dan akan hidup selama aplikasi jalan.
+    // Injection.shared... itu cuma helper buat bikin objectnya biar rapi.
     @StateObject var authManager = Injection.shared.provideAuthManager()
     
     var body: some Scene {
