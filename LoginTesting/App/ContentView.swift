@@ -9,7 +9,6 @@ import SwiftUI
 
 struct ContentView: View {
     
-    // 1. Ambil Shared State dari Environment (Dikirim dari LoginTestingApp)
     @EnvironmentObject var authManager: AuthenticationManager
     
     var body: some View {
@@ -24,11 +23,8 @@ struct ContentView: View {
             } else if authManager.isAuthenticated, let user = authManager.currentUser {
                 
                 // Tampilkan HomeView
-                HomeView(user: user, onLogout: {
-                    // Aksi Logout: Panggil fungsi di Manager
-                    authManager.logout()
-                })
-                .transition(.opacity)
+                HomeView(user: user)
+                    .transition(.opacity)
                 
                 // C. KONDISI: BELUM LOGIN
             } else {

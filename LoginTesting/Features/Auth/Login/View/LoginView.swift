@@ -4,6 +4,7 @@
 //
 //  Created by Nunu Nugraha on 03/12/25.
 //
+
 import SwiftUI
 
 struct LoginView: View {
@@ -17,7 +18,12 @@ struct LoginView: View {
     // State Validasi Lokal (Untuk feedback UI langsung)
     var isEmailValid: Bool { email.isValidEmail }
     var isPasswordValid: Bool { password.isValidPassword }
-    var canSubmit: Bool { isEmailValid && isPasswordValid && !presenter.isLoading }
+    //var canSubmit: Bool { isEmailValid && isPasswordValid && !presenter.isLoading }
+    
+    var canSubmit: Bool {
+        // Bypass validasi: Tombol nyala asalkan input tidak kosong & tidak loading
+        !email.isEmpty && !password.isEmpty && !presenter.isLoading
+    }
     
     var body: some View {
         ZStack {
