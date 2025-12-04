@@ -18,8 +18,8 @@ class LoginPresenter: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var isError: Bool = false
     @Published var errorMessage: String = ""
-    @Published var isLoggedIn: Bool = false // Trigger pindah halaman ke Home
-    @Published var user: UserModel?         // Data user (opsional disimpan di sini)
+    @Published var isLoggedIn: Bool = false
+    @Published var user: UserModel?
     
     // 3. Init
     init(loginUseCase: LoginUseCase) {
@@ -41,7 +41,6 @@ class LoginPresenter: ObservableObject {
             fcmToken: "dummy_fcm"
         )
         
-        print("cek request: \(request)")
         // Eksekusi
         loginUseCase.login(request: request)
             .receive(on: RunLoop.main) // Wajib Main Thread
