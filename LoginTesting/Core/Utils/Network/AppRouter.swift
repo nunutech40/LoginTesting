@@ -26,17 +26,17 @@ enum AppRouter: APIEndpoint {
     // GET Requests
     case getCategories
     case searchProducts(query: String, limit: Int) // OK: Menangani query dinamis
-    case getProductDetail(id: String)              // OK: Menangani path dinamis {id}
     
     // POST Requests
     case login(credentials: [String: String])
+    case getProfile
     case submitOrder(data: [String: String])
     
     // MARK: - Implementasi Protokol
     
     var method: HTTPMethod {
         switch self {
-        case .getCategories, .searchProducts, .getProductDetail:
+        case .getCategories, .searchProducts, .getProfile:
             return .get
         case .login, .submitOrder: // Tambahkan semua POST case di sini
             return .post
@@ -54,8 +54,8 @@ enum AppRouter: APIEndpoint {
             return "/api/v1/auth/login"
         case .submitOrder:
             return "/orders"
-        case .getProductDetail(let id):
-            return "/products/\(id)"
+        case .getProfile:
+            return "/api/v1/auth/profile"
         }
     }
     
@@ -68,7 +68,7 @@ enum AppRouter: APIEndpoint {
             return credentials // JSON Body Data (POST)
         case .submitOrder(let data):
             return data // JSON Body Data (POST)
-        case .getCategories, .getProductDetail:
+        case .getCategories, .getProfile:
             return nil // GET tanpa parameter body/query
         }
     }
@@ -109,7 +109,7 @@ extension AppRouter {
         switch self {
         case .login:
             return false // TIDAK perlu token untuk login
-        case .getCategories, .searchProducts, .getProductDetail, .submitOrder:
+        case .getCategories, .searchProducts, .getProfile, .submitOrder:
             return true // Semua endpoint ini memerlukan token
         }
     }

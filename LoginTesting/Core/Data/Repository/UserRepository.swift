@@ -11,6 +11,7 @@ import Combine
 // MARK: - Protocol
 protocol UserRepositoryProtocol {
     func login(credentials: LoginRequestBody) -> AnyPublisher<UserModel, Error>
+    func getProfile() -> AnyPublisher<UserProfileModel, Error>
 }
 
 // MARK: - Implementation
@@ -38,8 +39,8 @@ final class UserRepository: UserRepositoryProtocol {
         
         // 1. Panggil API (Dapat AuthDataResponse yang ada tokennya)
         return remoteDataSource.login(credentials: credentials)
-            
-            // 2. SIDE EFFECT: Tahan token di sini, simpan ke Keychain
+        
+        // 2. SIDE EFFECT: Tahan token di sini, simpan ke Keychain
             .handleEvents(receiveOutput: { [weak self] response in
                 guard let self = self else { return }
                 
@@ -63,8 +64,8 @@ final class UserRepository: UserRepositoryProtocol {
                 // Panggil Generic Storage buat simpan
                 self.storage.save(userToSave, key: StorageKeys.sessionUser)
             })
-            
-            // 3. MAPPING: Buang token, kembalikan data user bersih ke Interactor
+        
+        // 3. MAPPING: Buang token, kembalikan data user bersih ke Interactor
             .map { response -> UserModel in
                 let info = response.userInfo
                 
@@ -75,6 +76,42 @@ final class UserRepository: UserRepositoryProtocol {
                     email: info.email,
                     fullname: info.fullname
                 )
+            }
+            .eraseToAnyPublisher()
+    }
+    
+    func getProfile() -> AnyPublisher<UserProfileModel, Error> {
+        
+        // 1. Panggil DataSource
+        // Karena lo pake parseAPIResponse, output di sini SUDAH 'UserProfileResponse' (DTO)
+        // BUKAN ServerResponse lagi.
+        return remoteDataSource.getProfile()
+        
+        // 2. MAPPING KE DOMAIN (DTO -> Model)
+        // Gak perlu tryMap atau buka meta lagi. Langsung aja.
+            .map { dtoResponse -> UserProfileModel in
+                return dtoResponse.toDomain()
+            }
+        
+        // 3. SIMPAN KE CACHE (Domain Model)
+            .handleEvents(receiveOutput: { [weak self] domainModel in
+                print("Network Sukses. Simpan ke Cache.")
+                self?.storage.save(domainModel, key: StorageKeys.fullProfile)
+            })
+        
+        // 4. FALLBACK KE CACHE (Kalau Error)
+            .catch { [weak self] error -> AnyPublisher<UserProfileModel, Error> in
+                print("Network Error: \(error). Cek Cache...")
+                
+                if let cachedData: UserProfileModel = self?.storage.get(key: StorageKeys.fullProfile) {
+                    print("Pake Cache.")
+                    return Just(cachedData)
+                        .setFailureType(to: Error.self)
+                        .eraseToAnyPublisher()
+                } else {
+                    print("Cache Kosong.")
+                    return Fail(error: error).eraseToAnyPublisher()
+                }
             }
             .eraseToAnyPublisher()
     }

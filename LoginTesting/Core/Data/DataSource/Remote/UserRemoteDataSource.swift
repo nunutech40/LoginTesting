@@ -24,6 +24,7 @@ struct LoginRequestBody: Encodable {
 protocol UserDataSourceProtocol {
     // UBAH: Mengembalikan AuthData (Payload API)
     func login(credentials: LoginRequestBody) -> AnyPublisher<AuthDataResponse, Error>
+    func getProfile() -> AnyPublisher<UserProfileResponse, Error>
 }
 
 final class UserRemoteDataSource: UserDataSourceProtocol {
@@ -51,5 +52,17 @@ final class UserRemoteDataSource: UserDataSourceProtocol {
         } catch {
             return Fail(error: error).eraseToAnyPublisher()
         }
+    }
+    
+    // MARK: - Get Profile (BARU)
+    func getProfile() -> AnyPublisher<UserProfileResponse, Error> {
+        
+        // Asumsi: AppRouter.getProfile sudah diset (Method GET, isAuthRequired = true)
+        let router = AppRouter.getProfile
+        
+        // Panggil API -> Parse ke UserProfileResponse
+        // Token otomatis di-inject oleh APIClient karena router.isAuthRequired = true
+        return client.request(router: router)
+            .parseAPIResponse(type: UserProfileResponse.self)
     }
 }
