@@ -50,19 +50,25 @@
  
  ====================================================================================
  */
+
+
 import XCTest
 import Combine
-@testable import LoginTesting // Ganti dengan nama Project kamu
+@testable import LoginTesting
 
 class UserRemoteDataSourceTests: XCTestCase {
     
-    var sut: UserRemoteDataSource! // System Under Test (Yang mau dites)
+    // MARK: - Properties
+    var sut: UserRemoteDataSource!
     var mockClient: MockNetworkClient!
     var cancellables: Set<AnyCancellable>!
     
+    // Dummy Request Data
+    let dummyLoginReq = LoginRequestBody(username: "u", password: "p", fcmToken: "f")
+    
+    // MARK: - Setup
     override func setUp() {
         super.setUp()
-        // 1. Reset setiap kali test jalan
         mockClient = MockNetworkClient()
         sut = UserRemoteDataSource(client: mockClient)
         cancellables = []
@@ -75,204 +81,264 @@ class UserRemoteDataSourceTests: XCTestCase {
         super.tearDown()
     }
     
-    // MARK: - Test Case 1: Login SUKSES ✅
-    func testLogin_WhenAPISuccess_ShouldReturnAuthData() {
-        // 1. GIVEN (Kondisi Awal)
-        let expectedToken = "token_rahasia_123"
-        let jsonString = """
+    // =========================================================================
+    // MARK: - 1. HAPPY PATHS (Tes Sukses Semua Fitur)
+    // =========================================================================
+    
+    func testLogin_Success() {
+        // [FIXED] Login balikin 'AuthDataResponse' yang berisi 'UserInfo'
+        // UserInfo biasanya punya partner_id/partner_no
+        let userJson = """
         {
-            "meta": {
-                "code": 200,
-                "status": "success",
-                "message": "OK"
-            },
+            "access_token": "abc",
+            "refresh_token": "ref",
+            "token_type": "Bearer",
             "data": {
-                "access_token": "\(expectedToken)",
-                "refresh_token": "refresh_123",
-                "token_type": "Bearer",
-                "data": {
-                    "id": 1,
-                    "partner_id": 10,
-                    "partner_no": "P10",
-                    "username": "hantesa",
-                    "fullname": "Hantes A",
-                    "email": "test@test.com"
-                }
+                "id": 1,
+                "partner_id": 101,
+                "partner_no": "P-001",
+                "username": "nunu",
+                "fullname": "Nunu",
+                "email": "n@m.com"
             }
         }
         """
-        // Kita paksa Mock Client buat balikin data JSON di atas
-        let data = jsonString.data(using: .utf8)!
-        mockClient.result = .success(data)
+        setupMockSuccess(withDataJson: userJson)
         
-        let request = LoginRequestBody(username: "user", password: "pwd", fcmToken: "fcm")
-        let expectation = XCTestExpectation(description: "Login Sukses")
-        
-        // 2. WHEN (Aksi)
-        sut.login(credentials: request)
-            .sink(receiveCompletion: { completion in
-                if case .failure(let error) = completion {
-                    XCTFail("Harusnya sukses, tapi malah error: \(error)")
+        expect(publisher: sut.login(credentials: dummyLoginReq)) { result in
+            if case .success(let response) = result {
+                // Assert Auth Data
+                XCTAssertEqual(response.accessToken, "abc")
+                // Assert UserInfo (Model Login)
+                XCTAssertEqual(response.userInfo.partnerNo, "P-001")
+                XCTAssertEqual(response.userInfo.username, "nunu")
+            } else {
+                if case .failure(let err) = result {
+                    XCTFail("Harusnya sukses, tapi error: \(err)")
                 }
-            }, receiveValue: { response in
-                // 3. THEN (Verifikasi)
-                XCTAssertEqual(response.accessToken, expectedToken)
-                XCTAssertEqual(response.userInfo.username, "hantesa")
-                expectation.fulfill()
-            })
-            .store(in: &cancellables)
-        
-        wait(for: [expectation], timeout: 1.0)
+            }
+        }
     }
     
-    // MARK: - Test Case 2: Login GAGAL (Password Salah / 401) ❌
-    func testLogin_WhenError401_ShouldReturnInvalidCredentialsError() {
-        // 1. GIVEN
-        // Sesuaikan JSON String dengan screenshot Postman kamu
-        let jsonString = """
+    func testGetProfile_Success() {
+        // [FIXED] Profile balikin 'UserProfileResponse'
+        // BEDA MODEL: Punya no_telp, kmpoin, photo_profile_url (UserInfo gak punya ini)
+        let profileJson = """
+        {
+            "id": 99,
+            "username": "doe",
+            "fullname": "Doe",
+            "email": "d@m.com",
+            "no_telp": "081234567890",
+            "kmpoin": 500,
+            "photo_profile_url": "https://img.com/me.jpg",
+            "join_date": "2023-01-01"
+        }
+        """
+        setupMockSuccess(withDataJson: profileJson)
+        
+        expect(publisher: sut.getProfile()) { result in
+            if case .success(let response) = result {
+                // Assert UserProfileResponse (Model Profile)
+                XCTAssertEqual(response.username, "doe")
+                XCTAssertEqual(response.noTelp, "081234567890")
+                XCTAssertEqual(response.kmpoin, 500)
+            } else {
+                if case .failure(let err) = result {
+                    XCTFail("Harusnya sukses, tapi error: \(err)")
+                }
+            }
+        }
+    }
+    
+    // MARK: VERIFY REQUEST PARAMETERS (SPY TEST)
+    func testLogin_ShouldSendCorrectParameters() {
+        // Dummy JSON struktur AuthDataResponse (UserInfo)
+        let userInfoJson = """
+        { "id": 1, "partner_id": 1, "partner_no": "1", "username": "a", "fullname": "a", "email": "a" }
+        """
+        
+        let fullResponse = """
+        {
+            "access_token": "a", "refresh_token": "b", "token_type": "c",
+            "data": \(userInfoJson)
+        }
+        """
+        setupMockSuccess(withDataJson: fullResponse, raw: true)
+        
+        let inputUsername = "user_ganteng"
+        let inputPassword = "password_kuat"
+        let req = LoginRequestBody(username: inputUsername, password: inputPassword, fcmToken: "f")
+        
+        _ = sut.login(credentials: req)
+        
+        guard let router = mockClient.lastRouterPassed else {
+            XCTFail("Request tidak dikirim ke client (router nil)")
+            return
+        }
+        
+        if case .login(let params) = router {
+            XCTAssertEqual(params["username"], inputUsername)
+            XCTAssertEqual(params["password"], inputPassword)
+        } else {
+            XCTFail("Router salah!")
+        }
+    }
+    
+    // =========================================================================
+    // MARK: - 2. SPECIFIC ERRORS
+    // =========================================================================
+    
+    func testLogin_CustomErrorMessage_422() {
+        // [FIX] Struktur JSON harus NESTED (data -> data) persis kayak response asli.
+        // Kalau strukturnya beda (kurang nested), Decoder bakal error duluan sebelum baca pesan "Password Salah Bro".
+        let errorJsonNested = """
             {
                 "meta": {
-                    "message": "Resource Not Found",
-                    "code": 401,
+                    "message": "Password Salah Bro",
+                    "code": 422,
                     "status": "error"
                 },
-                "data": null
+                "data": {
+                    "access_token": "dummy_token",
+                    "refresh_token": "dummy_refresh",
+                    "token_type": "Bearer",
+                    "data": {
+                        "id": 1,
+                        "partner_id": 101,
+                        "partner_no": "P-001",
+                        "username": "dummy",
+                        "fullname": "Dummy",
+                        "email": "dummy@mail.com"
+                    }
+                }
             }
             """
         
-        let errorData = jsonString.data(using: .utf8)!
+        // Inject manual result-nya biar gak kena wrap helper setupMockFailure yang mungkin salah format
+        let data = errorJsonNested.data(using: .utf8)!
+        mockClient.result = .failure(.serverError(statusCode: 422, data: data))
         
-        // PENTING: Karena statusnya 401, APIClient kamu akan melempar .failure(.serverError)
-        // Jadi Mock-nya harus diset ke .failure, bukan .success
-        mockClient.result = .failure(.serverError(statusCode: 401, data: errorData))
-        
-        let request = LoginRequestBody(username: "hantssesa", password: "12345678a", fcmToken: "fcmToken")
-        let expectation = XCTestExpectation(description: "Login Gagal 401")
-        
-        // 2. WHEN
-        sut.login(credentials: request)
-            .sink(receiveCompletion: { completion in
-                // 3. THEN
-                switch completion {
-                case .failure(let error):
-                    // Datasource harus mengubah NetworkError(401) menjadi AuthError.invalidCredentials
-                    // (Sesuai logic di HTTPErrorMapper yang kita buat)
-                    if let authError = error as? AuthError, authError == .invalidCredentials {
-                        expectation.fulfill() // ✅ BENAR
-                    } else {
-                        XCTFail("Tipe error salah. Harusnya AuthError.invalidCredentials, tapi dapat: \(error)")
-                    }
-                    
-                case .finished:
-                    XCTFail("Harusnya error, tapi malah sukses")
-                }
-            }, receiveValue: { _ in
-                XCTFail("Harusnya tidak ada data yang dikembalikan")
-            })
-            .store(in: &cancellables)
-        
-        wait(for: [expectation], timeout: 1.0)
-    }
-    
-    // MARK: - Test Case 4: Server Maintenance (500) 🛠️
-    func testLogin_WhenServer500_ShouldReturnServerMaintenanceError() {
-        // 1. GIVEN
-        // Simulasi APIClient melempar error 500
-        mockClient.result = .failure(.serverError(statusCode: 500, data: nil))
-        
-        let request = LoginRequestBody(username: "u", password: "p", fcmToken: "f")
-        let expectation = XCTestExpectation(description: "Server Maintenance")
-        
-        // 2. WHEN
-        sut.login(credentials: request)
-            .sink(receiveCompletion: { completion in
-                // 3. THEN
-                if case .failure(let error) = completion {
-                    // Pastikan ke-map jadi .serverMaintenance
-                    if let authError = error as? AuthError, authError == .serverMaintenance {
-                        expectation.fulfill()
-                    } else {
-                        XCTFail("Harusnya AuthError.serverMaintenance, dapat: \(error)")
-                    }
-                }
-            }, receiveValue: { _ in
-                XCTFail("Harusnya error")
-            })
-            .store(in: &cancellables)
-        
-        wait(for: [expectation], timeout: 1.0)
-    }
-    
-    // MARK: - Test Case 5: Custom Message dari Server 💬
-    func testLogin_WhenMetaErrorWithCustomMessage_ShouldReturnCustomError() {
-        // 1. GIVEN
-        let customMsg = "Email belum diverifikasi cuy!"
-        let jsonString = """
-            {
-                "meta": {
-                    "code": 422,
-                    "status": "error",
-                    "message": "\(customMsg)"
-                },
-                "data": null
+        expect(publisher: sut.login(credentials: dummyLoginReq)) { result in
+            if case .failure(let error) = result,
+               let authError = error as? AuthError,
+               case .custom(let msg) = authError {
+                XCTAssertEqual(msg, "Password Salah Bro")
+            } else {
+                if case .failure(let err) = result { print("DEBUG: Error aslinya adalah \(err)") }
+                XCTFail("Harusnya Custom Error, tapi dapet: \(result)")
             }
-            """
-        let data = jsonString.data(using: .utf8)!
-        
-        // Anggaplah APIClient sukses balikin data (200 OK), tapi isinya error bisnis
-        mockClient.result = .success(data)
-        
-        let request = LoginRequestBody(username: "u", password: "p", fcmToken: "f")
-        let expectation = XCTestExpectation(description: "Custom Error")
-        
-        // 2. WHEN
-        sut.login(credentials: request)
-            .sink(receiveCompletion: { completion in
-                // 3. THEN
-                if case .failure(let error) = completion {
-                    // Pastikan errornya .custom dan pesannya sesuai
-                    if let authError = error as? AuthError,
-                       case .custom(let msg) = authError,
-                       msg == customMsg { // Cek stringnya sama gak?
-                        expectation.fulfill()
-                    } else {
-                        XCTFail("Harusnya AuthError.custom('\(customMsg)'), dapat: \(error)")
-                    }
-                }
-            }, receiveValue: { _ in
-                XCTFail("Harusnya error")
-            })
-            .store(in: &cancellables)
-        
-        wait(for: [expectation], timeout: 1.0)
+        }
     }
     
-    // MARK: - Test Case 3: Error Koneksi (Transport) ⚠️
-    func testLogin_WhenNoInternet_ShouldReturnTransportError() {
-        // 1. GIVEN
-        // Simulasi Internet Mati (Mock langsung lempar error)
+    func testGetProfile_DecodingError() {
+        setupMockSuccess(withDataJson: "{ \"salah\": \"format\" }")
+        
+        expect(publisher: sut.getProfile()) { result in
+            if case .failure(let error) = result,
+               let netError = error as? NetworkError,
+               case .decodingError = netError {
+                XCTAssertTrue(true)
+            } else {
+                XCTFail("Harusnya Decoding Error")
+            }
+        }
+    }
+    
+    // =========================================================================
+    // MARK: - 3. COMMON ERRORS
+    // =========================================================================
+    
+    func test_AllFeatures_StandardHttpErrors() {
+        verifyCommonHttpErrors(description: "Login") {
+            self.sut.login(credentials: self.dummyLoginReq)
+        }
+        
+        verifyCommonHttpErrors(description: "GetProfile") {
+            self.sut.getProfile()
+        }
+    }
+    
+    func test_AllFeatures_NoInternetConnection() {
         let transportError = NetworkError.transportError(URLError(.notConnectedToInternet))
         mockClient.result = .failure(transportError)
         
-        let request = LoginRequestBody(username: "user", password: "pwd", fcmToken: "fcm")
-        let expectation = XCTestExpectation(description: "Error Koneksi")
+        expect(publisher: sut.login(credentials: dummyLoginReq)) { result in
+            self.assertTransportError(result)
+        }
         
-        // 2. WHEN
-        sut.login(credentials: request)
-            .sink(receiveCompletion: { completion in
-                // 3. THEN
+        expect(publisher: sut.getProfile()) { result in
+            self.assertTransportError(result)
+        }
+    }
+}
+
+// =========================================================================
+// MARK: - HELPER METHODS
+// =========================================================================
+
+extension UserRemoteDataSourceTests {
+    
+    func verifyCommonHttpErrors<T>(description: String, action: () -> AnyPublisher<T, Error>) {
+        let scenarios: [Int: AuthError] = [
+            401: .invalidCredentials,
+            500: .serverMaintenance,
+            503: .serverMaintenance
+        ]
+        
+        for (code, expectedError) in scenarios {
+            
+            // [FIX PENTING] Jangan pake setupMockFailure!
+            // Kita inject Data Kosong/Rusak "{}" supaya logic 'baca pesan json' GAGAL.
+            // Dengan gagal baca pesan, dia akan fallback ke pengecekan Status Code.
+            let emptyData = "{}".data(using: .utf8)!
+            mockClient.result = .failure(.serverError(statusCode: code, data: emptyData))
+            
+            let exp = XCTestExpectation(description: "\(description) Error \(code)")
+            
+            action().sink(receiveCompletion: { completion in
                 if case .failure(let error) = completion {
-                    if let netError = error as? NetworkError, case .transportError = netError {
-                        expectation.fulfill() // BENAR
-                    } else {
-                        XCTFail("Harusnya Transport Error")
-                    }
+                    // Sekarang harusnya cocok, karena dia pakai fallback mapping
+                    XCTAssertEqual(error as? AuthError, expectedError, "\(description) code \(code) salah mapping. Dapet: \(error)")
+                    exp.fulfill()
                 }
-            }, receiveValue: { _ in
-                XCTFail("Harusnya error")
-            })
+            }, receiveValue: { _ in XCTFail("Harusnya Error") })
             .store(in: &cancellables)
-        
-        wait(for: [expectation], timeout: 1.0)
+            
+            wait(for: [exp], timeout: 0.1)
+        }
+    }
+    
+    func assertTransportError<T>(_ result: Result<T, Error>) {
+        if case .failure(let err) = result, let netErr = err as? NetworkError, case .transportError = netErr {
+            XCTAssertTrue(true)
+        } else {
+            XCTFail("Bukan transport error")
+        }
+    }
+    
+    private func setupMockSuccess(withDataJson jsonBody: String, raw: Bool = false) {
+        let fullJson = raw ? jsonBody : """
+        { "meta": { "code": 200, "status": "success", "message": "OK" }, "data": \(jsonBody) }
+        """
+        mockClient.result = .success(fullJson.data(using: .utf8)!)
+    }
+    
+    private func setupMockFailure(errorCode: Int, message: String = "Fail", dataBody: String = "null") {
+        let errorJson = """
+        { "meta": { "code": \(errorCode), "status": "error", "message": "\(message)" }, "data": \(dataBody) }
+        """
+        let data = errorJson.data(using: .utf8)!
+        mockClient.result = .failure(.serverError(statusCode: errorCode, data: data))
+    }
+    
+    private func expect<T: Publisher>(publisher: T, assertion: @escaping (Result<T.Output, T.Failure>) -> Void) {
+        let exp = XCTestExpectation(description: "Wait")
+        publisher.sink(receiveCompletion: { completion in
+            if case .failure(let err) = completion { assertion(.failure(err)); exp.fulfill() }
+        }, receiveValue: { val in
+            assertion(.success(val)); exp.fulfill()
+        }).store(in: &cancellables)
+        wait(for: [exp], timeout: 1.0)
     }
 }

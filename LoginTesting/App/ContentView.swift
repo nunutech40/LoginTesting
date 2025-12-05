@@ -21,12 +21,9 @@ struct ContentView: View {
                 
                 // B. KONDISI: SUDAH LOGIN
             } else if authManager.isAuthenticated, let user = authManager.currentUser {
-                
-                // Tampilkan HomeView
-                HomeView(user: user)
+                // Panggil Factory Function buat Home
+                createHomeModule()
                     .transition(.opacity)
-                
-                // C. KONDISI: BELUM LOGIN
             } else {
                 
                 // Rakit & Tampilkan Module Login
@@ -75,6 +72,18 @@ extension ContentView {
                     authManager.loginSuccess(user: user)
                 }
             }
+    }
+    
+    // [BARU] RAKIT HOME MODULE
+    func createHomeModule() -> some View {
+        // 1. Ambil UseCase dari Injection
+        let homeUseCase = Injection.shared.provideHomeUseCase()
+        
+        // 2. Pasang ke Presenter
+        let presenter = HomePresenter(interactor: homeUseCase)
+        
+        // 3. Pasang ke View
+        return HomeView(presenter: presenter)
     }
 }
 

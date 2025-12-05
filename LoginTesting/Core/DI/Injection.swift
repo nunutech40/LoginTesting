@@ -47,6 +47,11 @@ final class Injection: NSObject {
     // Nanti kalau ada fitur lain, tambah di sini:
     // func provideProfileUseCase() -> ProfileUseCase { ... }
     
+    // [BARU] Tambahan buat Home
+    func provideHomeUseCase() -> HomeUseCase {
+        let repository = provideUserRepository()
+        return HomeInteractor(userRepository: repository)
+    }
     
     // MARK: - 3. Provide Global State (App Layer)
     

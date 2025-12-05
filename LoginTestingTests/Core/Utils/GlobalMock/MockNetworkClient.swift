@@ -9,15 +9,20 @@ import XCTest
 import Combine
 @testable import LoginTesting // Ganti dengan nama Project kamu
 
-// MARK: - MOCK Network Client
+
 class MockNetworkClient: NetworkClient {
     
-    // Kita bisa atur hasil return-nya mau Sukses (Data) atau Gagal (Error)
+    // 1. Hasil Return (STUB) - Buat nentuin sukses/gagal
     var result: Result<Data, NetworkError>?
     
+    // 2. Router Terakhir (SPY) - Buat ngintip parameter request [BARU]
+    var lastRouterPassed: AppRouter?
+    
     func request(router: AppRouter) -> AnyPublisher<Data, NetworkError> {
+        // TANGKAP router yang dikirim user, simpan di variabel
+        self.lastRouterPassed = router
+        
         guard let result = result else {
-            // Default kalau lupa set result
             return Fail(error: NetworkError.unknown(NSError(domain: "", code: -1))).eraseToAnyPublisher()
         }
         
