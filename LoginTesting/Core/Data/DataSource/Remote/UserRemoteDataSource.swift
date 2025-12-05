@@ -22,7 +22,6 @@ struct LoginRequestBody: Encodable {
 }
 
 protocol UserDataSourceProtocol {
-    // UBAH: Mengembalikan AuthData (Payload API)
     func login(credentials: LoginRequestBody) -> AnyPublisher<AuthDataResponse, Error>
     func getProfile() -> AnyPublisher<UserProfileResponse, Error>
 }
@@ -45,7 +44,11 @@ final class UserRemoteDataSource: UserDataSourceProtocol {
             
             let router = AppRouter.login(credentials: parameters)
             
-            // LIHAT INI: Cukup panggil client, lalu validasi. Selesai.
+            // BERSIH! Gak perlu .mapError lagi di sini.
+            // .parseAPIResponse() di extension sudah nge-handle:
+            // 1. Validasi Sukses
+            // 2. Baca Pesan Error Custom (422)
+            // 3. Mapping Error Standard (401, 500, Offline)
             return client.request(router: router)
                 .parseAPIResponse(type: AuthDataResponse.self)
             
@@ -54,14 +57,12 @@ final class UserRemoteDataSource: UserDataSourceProtocol {
         }
     }
     
-    // MARK: - Get Profile (BARU)
+    // MARK: - Get Profile
     func getProfile() -> AnyPublisher<UserProfileResponse, Error> {
         
-        // Asumsi: AppRouter.getProfile sudah diset (Method GET, isAuthRequired = true)
         let router = AppRouter.getProfile
         
-        // Panggil API -> Parse ke UserProfileResponse
-        // Token otomatis di-inject oleh APIClient karena router.isAuthRequired = true
+        // BERSIH JUGA!
         return client.request(router: router)
             .parseAPIResponse(type: UserProfileResponse.self)
     }
