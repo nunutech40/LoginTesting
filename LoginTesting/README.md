@@ -22,6 +22,16 @@ VIPER adalah singkatan dari:
 -   **Entity (Model)**: Berisi struktur data sederhana atau objek bisnis yang digunakan oleh Interactor.
 -   **Router (Wireframe)**: Bertanggung jawab untuk logika navigasi, menentukan layar mana yang akan ditampilkan selanjutnya.
 
+```mermaid
+graph TD;
+    A[View] -- Aksi Pengguna --> B(Presenter);
+    B -- Perbarui Tampilan --> A;
+    B -- Minta Data --> C(Interactor);
+    C -- Kirim Data --> B;
+    C -- Ambil/Olah Data --> D[Entity];
+    B -- Navigasi --> E(Router);
+```
+
 ### Clean Architecture
 Proyek ini mematuhi Clean Architecture dengan mengatur kode menjadi beberapa lapisan:
 
